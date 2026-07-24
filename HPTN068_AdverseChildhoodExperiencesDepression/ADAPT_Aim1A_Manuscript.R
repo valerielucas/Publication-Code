@@ -122,7 +122,6 @@ hptn068_complete <- hptn068_complete |>
     consumption_rs3 = ifelse(consumption > knots_consumption[3], consumption_sq4 - consumption_sq3, 0)
   )
 
-```
 
 
 #### Methods: Dataset Cleaning ####
