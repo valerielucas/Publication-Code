@@ -1,3 +1,6 @@
+# Authors: Valerie Lucas, Luz M. Reyes, Joanna Maselko, Marie Stoner, Molly Rosenberg, Stephanie M. DeLong, Nivedita L. Bhushan, Bianca Moffett, Erika T. Beidelman, Maria Klein, Kathleen Kahn, Audrey Pettifor
+# Date updated: 2026/07/24
+# Publication: The effect of adverse childhood experiences on depression prevalence in adolescent girls and young women over time: a secondary analysis of HPTN 068 trial data
 
 #### Setup ####
 
