@@ -1,6 +1,3 @@
-# Authors: Valerie Lucas, Luz M. Reyes, Joanna Maselko, Marie Stoner, Molly Rosenberg, Stephanie M. DeLong, Nivedita L. Bhushan, Bianca Moffett, Erika T. Beidelman, Maria Klein, Kathleen Kahn, Audrey Pettifor
-# Date updated: 2026/07/24
-# Publication: The effect of adverse childhood experiences on depression prevalence in adolescent girls and young women over time: a secondary analysis of HPTN 068 trial data
 
 #### Setup ####
 
@@ -27,6 +24,9 @@ file_path <- "~/Documents/R/ADAPT Aim 1A/"
 
 # custom analysis functions
 source(paste0(file_path, "Manuscript/analysis_funcs.R"))
+
+# suppress scientific notation
+options(scipen=999)
 
 # read in data
 hptn068_complete <- read_dta(paste0(file_path, "Input Data/Full Dataset/hptn068.complete_201801.dta"))
@@ -103,8 +103,20 @@ hptn068_complete$depression20 <- ifelse(hptn068_complete$cesd_sum < 20, 0, 1)
 ## create arm a name variable
 hptn068_complete$arm_name <- ifelse(hptn068_complete$arm == 1234, "control", "intervention")
 
+## create age categories 
+hptn068_complete$age_cat <- case_when(
+  hptn068_complete$yw_age <= 15 ~ "13-15",
+  hptn068_complete$yw_age >= 16 & hptn068_complete$yw_age <= 17 ~ "16-17",
+  hptn068_complete$yw_age >= 18 ~ "18+",
+  .default = NA
+)
+
 ## rename consumption variables
 hptn068_complete$consumption <- hptn068_complete$logpcexptotal
+
+## create consumption categories
+hptn068_complete$consumption_cat <- ifelse(hptn068_complete$consumption >= median(hptn068_complete$consumption, na.rm = TRUE), "Above median", "Below median")
+
 
 ## create knots with for spline w/ consumption
 knots_consumption <- quantile(hptn068_complete$consumption, c(0.10, 0.33, 0.67, 0.90), na.rm = TRUE)
@@ -137,7 +149,7 @@ hptn068_filtered <- hptn068_complete |>
 adapt_visit201 <- hptn068_filtered  |>
   filter(visit == 201) |>
   rename(grade_level = g1c5) |>
-  select(uid, visit, arm_name, double_orphan, not_care, food_insecure, ipv_physical, sex_violence, school_violence, someprimaryorless_mother, consumption, consumption_rs1, consumption_rs2, consumption_rs3, yw_age, grade_level, cdi_depressed7, ace_sum)
+  select(uid, visit, arm_name, double_orphan, not_care, food_insecure, ipv_physical, sex_violence, school_violence, someprimaryorless_mother, consumption, consumption_rs1, consumption_rs2, consumption_rs3, yw_age, grade_level, cdi_depressed7, ace_sum, age_cat, consumption_cat)
 
 # complete case analysis at baseline
 adapt_visit201_nona <- adapt_visit201 |>
@@ -180,66 +192,9 @@ gcomp_model_list <- list(gcomp_model_double_orphan, gcomp_model_not_care, gcomp_
 # display table 1 for people who are ≤17 at enrollment
 table1(~ factor(double_orphan) + factor(not_care) + factor(food_insecure) + factor(ipv_physical) + factor(sex_violence) + factor(school_violence) + factor(ace_sum) + factor(someprimaryorless_mother) + consumption + yw_age + factor(yw_age) + factor(arm_name) + factor(grade_level), data = adapt_visit201)
 
-#### Results: Table 2, Correlation matrix ####
-
-## filter to include only participants age ≤17 at enrollment then select only ACE variables
-adapt_cor <- adapt_visit201_nona |>
-  filter(yw_age <= 17) |>
-  select(double_orphan, not_care, food_insecure, ipv_physical, sex_violence, school_violence)
-
-## generate correlation matrix
-cor_matrix <- cor(adapt_cor, method = "pearson")
-
-## round correlation coeffs, then convert matrix to data frame
-correlation_ace <- data.frame(round(cor_matrix, 3))
-
-## write correlation matrix to .csv file
-write_csv(correlation_ace, paste0(file_path, "Output Data/table02_ace_covariance.csv"))
 
 
-#### Results: Table 3, Attrition by ACE ####
 
-# construct analytic dataset
-adapt_analytic <- dataset_construction(uid_list = unique(adapt_visit201_nona$uid), adapt_visit201 = adapt_visit201_nona, adapt_depression = adapt_depression)
-
-# make attrition table for each visit 
-adapt_attrition <- adapt_analytic |>
-  group_by(visit_number) |>
-  reframe(double_orphan_na = "",
-          double_orphan_yes = sum(double_orphan*(!is.na(depression) | visit_number == 0), na.rm = TRUE),
-          double_orphan_no = sum((1-double_orphan)*!is.na(depression | visit_number == 0), na.rm = TRUE),
-          not_care_na = "",
-          not_care_yes = sum(not_care*(!is.na(depression) | visit_number == 0), na.rm = TRUE),
-          not_care_no = sum((1-not_care)*!is.na(depression | visit_number == 0), na.rm = TRUE),
-          food_insecure_na = "",
-          food_insecure_yes = sum(food_insecure*(!is.na(depression) | visit_number == 0), na.rm = TRUE),
-          food_insecure_no = sum((1-food_insecure)*!is.na(depression | visit_number == 0), na.rm = TRUE),
-          ipv_physical_na = "",
-          ipv_physical_yes = sum(ipv_physical*(!is.na(depression) | visit_number == 0), na.rm = TRUE),
-          ipv_physical_no = sum((1-ipv_physical)*!is.na(depression | visit_number == 0), na.rm = TRUE),
-          sex_violence_na = "",
-          sex_violence_yes = sum(sex_violence*(!is.na(depression) | visit_number == 0), na.rm = TRUE),
-          sex_violence_no = sum((1-sex_violence)*!is.na(depression | visit_number == 0), na.rm = TRUE),
-          school_violence_na = "",
-          school_violence_yes = sum(school_violence*(!is.na(depression) | visit_number == 0), na.rm = TRUE),
-          school_violence_no = sum((1-school_violence)*!is.na(depression | visit_number == 0), na.rm = TRUE)
-  ) |>
-  mutate(double_orphan_yes = paste0(double_orphan_yes, " (", round(double_orphan_yes / max(double_orphan_yes)*100), "%)"),
-         double_orphan_no = paste0(double_orphan_no, " (", round(double_orphan_no / max(double_orphan_no)*100), "%)"),
-         not_care_yes = paste0(not_care_yes, " (", round(not_care_yes / max(not_care_yes)*100), "%)"),
-         not_care_no = paste0(not_care_no, " (", round(not_care_no / max(not_care_no)*100), "%)"),
-         food_insecure_yes = paste0(food_insecure_yes, " (", round(food_insecure_yes / max(food_insecure_yes)*100), "%)"),
-         food_insecure_no = paste0(food_insecure_no, " (", round(food_insecure_no / max(food_insecure_no)*100), "%)"),
-         ipv_physical_yes = paste0(ipv_physical_yes, " (", round(ipv_physical_yes / max(ipv_physical_yes)*100), "%)"),
-         ipv_physical_no = paste0(ipv_physical_no, " (", round(ipv_physical_no / max(ipv_physical_no)*100), "%)"),
-         sex_violence_yes = paste0(sex_violence_yes, " (", round(sex_violence_yes / max(sex_violence_yes)*100), "%)"),
-         sex_violence_no = paste0(sex_violence_no, " (", round(sex_violence_no / max(sex_violence_no)*100), "%)"),
-         school_violence_yes = paste0(school_violence_yes, " (", round(school_violence_yes / max(school_violence_yes)*100), "%)"),
-         school_violence_no = paste0(school_violence_no, " (", round(school_violence_no / max(school_violence_no)*100), "%)")) |>
-  data.table::transpose(keep.names = "ACE", make.names = "visit_number")
-
-# save to .csv file
-write.csv(adapt_attrition, paste0(file_path, "Output Data/table03_adapt_attrition.csv"))
 
 #### Results: Figure 2, Depression prevalence curves ####
 
@@ -249,6 +204,8 @@ ace_names <- c("double orphan", "low parental care", "food insecurity", "physica
 
 adapt_results <- data.frame(ace = character(0), visit_number = numeric(0), prev_diff = numeric(0))
 
+# Construct dataset
+adapt_analytic <- dataset_construction(uid_list = unique(adapt_visit201_nona$uid), adapt_visit201 = adapt_visit201_nona, adapt_depression = adapt_depression)
 
 # remove visit 201
 adapt_analytic <- adapt_analytic |>
@@ -350,7 +307,7 @@ adapt_depression_plot <- ggplot() +
 ggsave(file = paste0(file_path, "Charts/fig02_adapt_depression_prev.pdf"), adapt_depression_plot, width = 7, height = 3.5, units = "in")
 
 
-#### Results: Table 4 and Figure 3 + Appendix 1: Figure 10, Primary prevalence, prevalence difference, and prevalence ratio results ####
+#### Results: Table 3 and Figure 2 + Appendix 1: Figure 12, Primary prevalence, prevalence difference, and prevalence ratio results ####
 
 # reset analytic dataset
 adapt_analytic_main <- dataset_construction(uid_list = adapt_visit201_nona$uid, adapt_visit201_nona, adapt_depression)
@@ -401,7 +358,23 @@ hptn068_complete_composite <- hptn068_complete |>
 # save to CSV file
 write_csv(hptn068_complete_composite, paste0(file_path, "Output Data/hptn068_complete_composite.csv"))
 
-#### Appendix 1: Table 2, Crude and imputed depression prevalence ####
+#### Appendix 1: Table 2, Correlation matrix ####
+
+## filter to include only participants age ≤17 at enrollment then select only ACE variables
+adapt_cor <- adapt_visit201_nona |>
+  filter(yw_age <= 17) |>
+  select(double_orphan, not_care, food_insecure, ipv_physical, sex_violence, school_violence)
+
+## generate correlation matrix
+cor_matrix <- cor(adapt_cor, method = "pearson")
+
+## round correlation coeffs, then convert matrix to data frame
+correlation_ace <- data.frame(round(cor_matrix, 3))
+
+## write correlation matrix to .csv file
+write_csv(correlation_ace, paste0(file_path, "Output Data/ace_covariance.csv"))
+
+#### Appendix 1: Table 3, Crude and imputed depression prevalence ####
 
 # merge together crude data and imputed data
 adapt_depression_table_draft <- merge(x = prevalence_crude, y = prevalence_impute, by = "visit_number", suffixes = c("_crude","_adjusted"))
@@ -413,10 +386,53 @@ adapt_depression_table <- adapt_depression_table_draft |>
   select(visit_number, n_notdepressed,  n_depressed, n_missing, prev_crude, prev_adjusted)
 
 # write to csv
-write_csv(adapt_depression_table, paste0(file_path, "Output Data/table04_adapt_depression_prev.csv"))
+write_csv(adapt_depression_table, paste0(file_path, "Output Data/adapt_depression_prev.csv"))
 
+#### Appendix 1: Table 4, Attrition by ACE ####
 
-#### Appendix 1: Table 3 and Figure 1: Results limited to those aged 13-15 at baseline ####
+# construct analytic dataset
+adapt_analytic <- dataset_construction(uid_list = unique(adapt_visit201_nona$uid), adapt_visit201 = adapt_visit201_nona, adapt_depression = adapt_depression)
+
+# make attrition table for each visit 
+adapt_attrition <- adapt_analytic |>
+  group_by(visit_number) |>
+  reframe(double_orphan_na = "",
+          double_orphan_yes = sum(double_orphan*(!is.na(depression) | visit_number == 0), na.rm = TRUE),
+          double_orphan_no = sum((1-double_orphan)*!is.na(depression | visit_number == 0), na.rm = TRUE),
+          not_care_na = "",
+          not_care_yes = sum(not_care*(!is.na(depression) | visit_number == 0), na.rm = TRUE),
+          not_care_no = sum((1-not_care)*!is.na(depression | visit_number == 0), na.rm = TRUE),
+          food_insecure_na = "",
+          food_insecure_yes = sum(food_insecure*(!is.na(depression) | visit_number == 0), na.rm = TRUE),
+          food_insecure_no = sum((1-food_insecure)*!is.na(depression | visit_number == 0), na.rm = TRUE),
+          ipv_physical_na = "",
+          ipv_physical_yes = sum(ipv_physical*(!is.na(depression) | visit_number == 0), na.rm = TRUE),
+          ipv_physical_no = sum((1-ipv_physical)*!is.na(depression | visit_number == 0), na.rm = TRUE),
+          sex_violence_na = "",
+          sex_violence_yes = sum(sex_violence*(!is.na(depression) | visit_number == 0), na.rm = TRUE),
+          sex_violence_no = sum((1-sex_violence)*!is.na(depression | visit_number == 0), na.rm = TRUE),
+          school_violence_na = "",
+          school_violence_yes = sum(school_violence*(!is.na(depression) | visit_number == 0), na.rm = TRUE),
+          school_violence_no = sum((1-school_violence)*!is.na(depression | visit_number == 0), na.rm = TRUE)
+  ) |>
+  mutate(double_orphan_yes = paste0(double_orphan_yes, " (", round(double_orphan_yes / max(double_orphan_yes)*100), "%)"),
+         double_orphan_no = paste0(double_orphan_no, " (", round(double_orphan_no / max(double_orphan_no)*100), "%)"),
+         not_care_yes = paste0(not_care_yes, " (", round(not_care_yes / max(not_care_yes)*100), "%)"),
+         not_care_no = paste0(not_care_no, " (", round(not_care_no / max(not_care_no)*100), "%)"),
+         food_insecure_yes = paste0(food_insecure_yes, " (", round(food_insecure_yes / max(food_insecure_yes)*100), "%)"),
+         food_insecure_no = paste0(food_insecure_no, " (", round(food_insecure_no / max(food_insecure_no)*100), "%)"),
+         ipv_physical_yes = paste0(ipv_physical_yes, " (", round(ipv_physical_yes / max(ipv_physical_yes)*100), "%)"),
+         ipv_physical_no = paste0(ipv_physical_no, " (", round(ipv_physical_no / max(ipv_physical_no)*100), "%)"),
+         sex_violence_yes = paste0(sex_violence_yes, " (", round(sex_violence_yes / max(sex_violence_yes)*100), "%)"),
+         sex_violence_no = paste0(sex_violence_no, " (", round(sex_violence_no / max(sex_violence_no)*100), "%)"),
+         school_violence_yes = paste0(school_violence_yes, " (", round(school_violence_yes / max(school_violence_yes)*100), "%)"),
+         school_violence_no = paste0(school_violence_no, " (", round(school_violence_no / max(school_violence_no)*100), "%)")) |>
+  data.table::transpose(keep.names = "ACE", make.names = "visit_number")
+
+# save to .csv file
+write.csv(adapt_attrition, paste0(file_path, "Output Data/adapt_attrition.csv"))
+
+#### Appendix 1: Table 5 and Figure 1: Results limited to those aged 13-15 at baseline ####
 
 # subset data to include only those 13-15 at baseline
 adapt_visit201_age1315 <- adapt_visit201_nona[adapt_visit201_nona$yw_age <= 15,]
@@ -442,7 +458,7 @@ results_report(adapt_results_ci = adapt_results_ci_age1315, file_path = file_pat
 
 
 
-#### Appendix 1: Table 4 and Figure 2: Results limited to those aged 16-17 at baseline ####
+#### Appendix 1: Table 6 and Figure 2: Results limited to those aged 16-17 at baseline ####
 
 # subset data to include only those 16-17 at baseline
 adapt_visit201_age1617 <- adapt_visit201_nona[adapt_visit201_nona$yw_age >= 16,]
@@ -468,7 +484,7 @@ results_report(adapt_results_ci = adapt_results_ci_age1617, file_path = file_pat
 
 
 
-#### Appendix 1: Table 5 and Figure 3: Results with those 18+ at baseline included ####
+#### Appendix 1: Table 7 and Figure 3: Results with those 18+ at baseline included ####
 
 # filter out extraneous biological data (Visit 901) and remove those 18+ at enrollment
 adapt_18included <- hptn068_complete |>
@@ -505,7 +521,7 @@ results_report(adapt_results_ci = adapt_results_ci_18included, file_path = file_
 
 
 
-#### Appendix 1: Table 6 and Figure 4: Results limited to those not depressed at baseline ####
+#### Appendix 1: Table 8 and Figure 4: Results limited to those not depressed at baseline ####
 
 # subset data to include only those not depressed at baseline
 adapt_visit201_notdepressed <- adapt_visit201_nona |>
@@ -532,7 +548,7 @@ results_report(adapt_results_ci = adapt_results_ci_notdepressed, file_path = fil
 
 
 
-#### Appendix 1: Table 7 and Figure 5: Results for CESD ≥ 20 outcome definition ####
+#### Appendix 1: Table 9 and Figure 5: Results for CESD ≥ 20 outcome definition ####
 
 # reset depression variable to equal the CESD ≥ 20 cutoff depression variable
 adapt_depression_cesd20 <- adapt_depression |>
@@ -559,7 +575,7 @@ results_report(adapt_results_ci = adapt_results_ci_cesd20, file_path = file_path
 
 
 
-#### Appendix 1: Table 8 and Figure 6: Age and cash transfer-only adjustment set ####
+#### Appendix 1: Table 10 and Figure 6: Age and cash transfer-only adjustment set ####
 
 ## Develop simpler g-computation models with only age and randomized conditional cash transfer (arm) g-computation models
 gcomp_model_double_orphan <- depression ~ arm_name + double_orphan + yw_age + yw_age^2 + as.factor(visit) + yw_age*double_orphan + as.factor(visit)*yw_age + as.factor(visit)*double_orphan
@@ -593,7 +609,7 @@ adapt_results_ci_simple <- bootstrap_analysis(reps = reps, adapt_visit201 = adap
 results_report(adapt_results_ci = adapt_results_ci_simple, file_path = file_path, label = "simple")
 
 
-#### Appendix 1: Table 9 and Figure 7: Inverse probability weighting analysis ####
+#### Appendix 1: Table 11 and Figure 7: Inverse probability weighting analysis ####
 
 ## Define IPTW denominator models
 iptw_double_orphan <- double_orphan ~ arm_name + someprimaryorless_mother + consumption + consumption_rs1 + consumption_rs2 + consumption_rs3 + yw_age + yw_age^2 + as.factor(visit) + as.factor(visit)*yw_age 
@@ -661,7 +677,7 @@ adapt_results_ci_ipw <- bootstrap_analysis(reps = reps, adapt_visit201 = adapt_v
 # save chart and CSV file
 results_report(adapt_results_ci = adapt_results_ci_ipw, file_path = file_path, label = "ipw")
 
-#### Appendix 1: Table 11, E-values for prevalence ratio point estimates ####
+#### Appendix 1: Table 13, E-values for prevalence ratio point estimates ####
 
 # calculate e-value of risk ratio estimate
 adapt_report_evalue <- adapt_results_ci_main |>
@@ -676,7 +692,7 @@ write_csv(adapt_report_evalue, paste0(file_path, "Output Data/e-value_rr.csv"))
 
 
 
-#### Appendix 1: Table 12, E-values for lower confidence limits of prevalence ratio point estimates ####
+#### Appendix 1: Table 14, E-values for lower confidence limits of prevalence ratio point estimates ####
 
 # calculate e-value of lower confidence interval limit
 adapt_report_evalue_lower <- adapt_results_ci_main |>
@@ -689,4 +705,65 @@ adapt_report_evalue_lower <- adapt_results_ci_main |>
 
 
 write_csv(adapt_report_evalue_lower, paste0(file_path, "Output Data/e-value_rr_lower.csv"))
+
+#### Appendix 1: Table 15, RR for confounders and ACEs
+
+# Calculate risk ratio between maternal education and each ACE
+confounder_exposure_table_some <- adapt_visit201_nona |>
+  group_by() |>
+  reframe(confounder = "maternal education",
+          double_orphan = sum(double_orphan*someprimaryorless_mother)/sum(someprimaryorless_mother) / (sum(double_orphan*(1 - someprimaryorless_mother))/sum(1 - someprimaryorless_mother)),
+          not_care = (sum(not_care*someprimaryorless_mother)/sum(someprimaryorless_mother)) / (sum(not_care*(1 - someprimaryorless_mother))/sum(1 - someprimaryorless_mother)),
+          food_insecure = (sum(food_insecure*someprimaryorless_mother)/sum(someprimaryorless_mother)) / (sum(food_insecure*(1 - someprimaryorless_mother))/sum(1 - someprimaryorless_mother)),
+          ipv_physical = (sum(ipv_physical*someprimaryorless_mother)/sum(someprimaryorless_mother)) / (sum(ipv_physical*(1 - someprimaryorless_mother))/sum(1 - someprimaryorless_mother)),
+          sex_violence = (sum(sex_violence*someprimaryorless_mother)/sum(someprimaryorless_mother)) / (sum(sex_violence*(1 - someprimaryorless_mother))/sum(1 - someprimaryorless_mother)),
+          school_violence = (sum(school_violence*someprimaryorless_mother)/sum(someprimaryorless_mother)) / (sum(school_violence*(1 - someprimaryorless_mother))/sum(1 - someprimaryorless_mother))
+  )
+
+# Calculate risk ratio between age at enrollment (16-17 vs. 13-15) and each ACE
+confounder_exposure_table_age <- adapt_visit201_nona |>
+  group_by() |>
+  reframe(confounder = "enrollment age",
+          double_orphan = (sum(double_orphan*(age_cat == "16-17"))/sum((age_cat == "16-17"))) / (sum(double_orphan*(1 - (age_cat == "16-17")))/sum(1 - (age_cat == "16-17"))),
+          not_care = (sum(not_care*(age_cat == "16-17"))/sum((age_cat == "16-17"))) / (sum(not_care*(1 - (age_cat == "16-17")))/sum(1 - (age_cat == "16-17"))),
+          food_insecure = (sum(food_insecure*(age_cat == "16-17"))/sum((age_cat == "16-17"))) / (sum(food_insecure*(1 - (age_cat == "16-17")))/sum(1 - (age_cat == "16-17"))),
+          ipv_physical = (sum(ipv_physical*(age_cat == "16-17"))/sum((age_cat == "16-17"))) / (sum(ipv_physical*(1 - (age_cat == "16-17")))/sum(1 - (age_cat == "16-17"))),
+          sex_violence = (sum(sex_violence*(age_cat == "16-17"))/sum((age_cat == "16-17"))) / (sum(sex_violence*(1 - (age_cat == "16-17")))/sum(1 - (age_cat == "16-17"))),
+          school_violence = (sum(school_violence*(age_cat == "16-17"))/sum((age_cat == "16-17"))) / (sum(school_violence*(1 - (age_cat == "16-17")))/sum(1 - (age_cat == "16-17")))
+  )
+
+# Calculate risk ratio between consumption (below vs. above median) and each ACE
+confounder_exposure_table_consumption <- adapt_visit201_nona |>
+  group_by() |>
+  reframe(confounder = "consumption",
+          double_orphan = (sum(double_orphan*(consumption_cat == "Below median"))/sum((consumption_cat == "Below median"))) / (sum(double_orphan*(1 - (consumption_cat == "Below median")))/sum(1 - (consumption_cat == "Below median"))),
+          not_care = (sum(not_care*(consumption_cat == "Below median"))/sum((consumption_cat == "Below median"))) / (sum(not_care*(1 - (consumption_cat == "Below median")))/sum(1 - (consumption_cat == "Below median"))),
+          food_insecure = (sum(food_insecure*(consumption_cat == "Below median"))/sum((consumption_cat == "Below median"))) / (sum(food_insecure*(1 - (consumption_cat == "Below median")))/sum(1 - (consumption_cat == "Below median"))),
+          ipv_physical = (sum(ipv_physical*(consumption_cat == "Below median"))/sum((consumption_cat == "Below median"))) / (sum(ipv_physical*(1 - (consumption_cat == "Below median")))/sum(1 - (consumption_cat == "Below median"))),
+          sex_violence = (sum(sex_violence*(consumption_cat == "Below median"))/sum((consumption_cat == "Below median"))) / (sum(sex_violence*(1 - (consumption_cat == "Below median")))/sum(1 - (consumption_cat == "Below median"))),
+          school_violence = (sum(school_violence*(consumption_cat == "Below median"))/sum((consumption_cat == "Below median"))) / (sum(school_violence*(1 - (consumption_cat == "Below median")))/sum(1 - (consumption_cat == "Below median")))
+  )
+
+
+# Bind rows together and round
+confounder_exposure_table <- rbind(confounder_exposure_table_some, confounder_exposure_table_age, confounder_exposure_table_consumption) |>
+  mutate_if(is.numeric, round, digits = 2)
+
+# Save CSV file
+write.csv(confounder_exposure_table, paste0(file_path, "Output Data/confounder_exposure.csv"))
+
+
+#### Appendix 1: Table 16, RR for confounders and outcome
+
+# Calculate risk ratio between each confounder and depression at each follow-up time and round
+confounder_outcome_table <- adapt_analytic_main |>
+  group_by(visit_number) |>
+  reframe(maternal_education = (sum(depression*someprimaryorless_mother, na.rm = TRUE)/sum(someprimaryorless_mother)) / (sum(depression*(1 - someprimaryorless_mother), na.rm = TRUE)/sum(1 - someprimaryorless_mother)),
+          enrollment_age = (sum(depression*(age_cat == "16-17"), na.rm = TRUE)/sum((age_cat == "16-17"))) / (sum(depression*(1 - (age_cat == "16-17")), na.rm = TRUE)/sum(1 - (age_cat == "16-17"))),
+          consumption = (sum(depression*(consumption_cat == "Below median"), na.rm = TRUE)/sum((consumption_cat == "Below median"))) / (sum(depression*(1 - (consumption_cat == "Below median")), na.rm = TRUE)/sum(1 - (consumption_cat == "Below median")))) |>
+  data.table::transpose(keep.names = "confounder", make.names = "visit_number") |>
+  mutate_if(is.numeric, round, digits = 2)
+  
+# Save CSV file
+write.csv(confounder_outcome_table, paste0(file_path, "Output Data/confounder_outcome.csv"))
 

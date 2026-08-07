@@ -1,6 +1,3 @@
-# Authors: Valerie Lucas, Luz M. Reyes, Joanna Maselko, Marie Stoner, Molly Rosenberg, Stephanie M. DeLong, Nivedita L. Bhushan, Bianca Moffett, Erika T. Beidelman, Maria Klein, Kathleen Kahn, Audrey Pettifor
-# Date updated: 2026/07/24
-# Publication: The effect of adverse childhood experiences on depression prevalence in adolescent girls and young women over time: a secondary analysis of HPTN 068 trial data
 
 ## dataset_construction: function to take in participant list, baseline data, and depression data and return analytic dataset
 ## uid_list: vector of participant IDs to be included in the analysis
@@ -23,7 +20,7 @@ dataset_construction <- function(uid_list, adapt_visit201, adapt_depression){
   adapt_baseline <- merge(adapt_empty, adapt_visit201, all.x = TRUE, by = c("uid", "visit")) |>
     group_by(uid) |>
     arrange(visit) |>
-    fill(arm_name, double_orphan, not_care, food_insecure, ipv_physical, sex_violence, school_violence, someprimaryorless_mother, consumption, consumption_rs1, consumption_rs2, consumption_rs3, yw_age, cdi_depressed7, .direction = "down")
+    fill(arm_name, double_orphan, not_care, food_insecure, ipv_physical, sex_violence, school_violence, someprimaryorless_mother, consumption, consumption_rs1, consumption_rs2, consumption_rs3, yw_age, cdi_depressed7, age_cat, consumption_cat, .direction = "down")
   
   # merge in depression data -- drop all depression data for which there is no one in the baseline data
   adapt <- merge(adapt_baseline, adapt_depression, all.x = TRUE, by = c("uid", "visit"))
