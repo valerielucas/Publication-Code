@@ -170,7 +170,7 @@ adapt_depression <- hptn068_complete |>
 visit_followup <- data.frame(table(hptn068_filtered[hptn068_filtered$uid %in% adapt_visit201_nona$uid,]$visit))
 
 # output the code
-write.csv(visit_followup , paste0(file_path, "Output Data/fig01_visit_followup.csv"))
+write.csv(visit_followup , paste0(file_path, "Output Data/visit_followup.csv"))
 
 #### Methods: G-computation model definitons ####
 
@@ -304,7 +304,7 @@ adapt_depression_plot <- ggplot() +
   theme_classic()
 
 # save image to PDF
-ggsave(file = paste0(file_path, "Charts/fig02_adapt_depression_prev.pdf"), adapt_depression_plot, width = 7, height = 3.5, units = "in")
+ggsave(file = paste0(file_path, "Charts/adapt_depression_prev.pdf"), adapt_depression_plot, width = 7, height = 3.5, units = "in")
 
 
 #### Results: Table 3 and Figure 2 + Appendix 1: Figure 12, Primary prevalence, prevalence difference, and prevalence ratio results ####
@@ -495,7 +495,7 @@ adapt_18included <- hptn068_complete |>
 # make new dataframe with select variables
 adapt_visit201_18included <- adapt_18included |>
   filter(visit == 201) |>
-  select(uid, visit, arm_name, double_orphan, not_care, food_insecure, ipv_physical, sex_violence, school_violence, someprimaryorless_mother, consumption, consumption_rs1, consumption_rs2, consumption_rs3, yw_age,  cdi_depressed7, ace_sum)
+  select(uid, visit, arm_name, double_orphan, not_care, food_insecure, ipv_physical, sex_violence, school_violence, someprimaryorless_mother, consumption, consumption_rs1, consumption_rs2, consumption_rs3, yw_age, cdi_depressed7, ace_sum, age_cat, consumption_cat)
 
 # complete case analysis at baseline
 adapt_visit201_18included_nona <- na.omit(adapt_visit201_18included)
